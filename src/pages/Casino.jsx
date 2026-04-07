@@ -303,9 +303,9 @@ export default function Casino() {
 
         <div className="bg-cream/50 rounded-xl border border-cream-dark p-6 text-center mt-10">
           <p className="text-pine font-serif italic text-sm m-0">
-            "The house always wins. But the memories of watching your friends lose are priceless."
+            "You'll lose a lot of money chasing women but you'll never lose women while chasing money."
           </p>
-          <p className="text-charcoal/30 text-[10px] mt-2 m-0">&mdash; The Committee</p>
+          <p className="text-charcoal/30 text-[10px] mt-2 m-0">&mdash; Phil</p>
         </div>
       </div>
     </div>
