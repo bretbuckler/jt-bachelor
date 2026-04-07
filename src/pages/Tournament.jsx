@@ -118,6 +118,80 @@ export default function Tournament() {
   const teamBName = tournament?.teamBName || "Team Shank Redemption";
   const teamAScore = tournament?.teamAScore || 0;
   const teamBScore = tournament?.teamBScore || 0;
+  const matchups = tournament?.matchups || { thu: [], fri: [], sat: [] };
+
+  // Admin = Bret (by display name)
+  const ADMINS = ["Bret Buckler", "Bret"];
+  const isAdmin = ADMINS.some((n) =>
+    profile?.displayName?.toLowerCase() === n.toLowerCase()
+  );
+
+  const [matchupDay, setMatchupDay] = useState("thu");
+  const [editingMatchups, setEditingMatchups] = useState(false);
+  const [matchupDraft, setMatchupDraft] = useState([]);
+
+  const dayLabels = { thu: "Day 1 — Thursday (2-Man Scramble)", fri: "Day 2 — Friday (Best Ball / Alt Shot)", sat: "Day 3 — Saturday (Individual Match Play)" };
+
+  const startEditMatchups = (day) => {
+    setMatchupDay(day);
+    setMatchupDraft(matchups[day] || []);
+    setEditingMatchups(true);
+  };
+
+  const addMatchup = () => {
+    if (matchupDay === "sat") {
+      setMatchupDraft([...matchupDraft, { teamAPlayer: "", teamBPlayer: "" }]);
+    } else {
+      setMatchupDraft([...matchupDraft, { teamAPair: ["", ""], teamBPair: ["", ""] }]);
+    }
+  };
+
+  const updateMatchup = (idx, field, value) => {
+    const updated = [...matchupDraft];
+    const keys = field.split(".");
+    if (keys.length === 2) {
+      updated[idx][keys[0]][parseInt(keys[1])] = value;
+    } else {
+      updated[idx][field] = value;
+    }
+    setMatchupDraft(updated);
+  };
+
+  const removeMatchup = (idx) => {
+    setMatchupDraft(matchupDraft.filter((_, i) => i !== idx));
+  };
+
+  const saveMatchups = async () => {
+    const current = tournament || {};
+    await setDoc(doc(db, "tournament", "config"), {
+      ...current,
+      matchups: { ...matchups, [matchupDay]: matchupDraft },
+    });
+    setEditingMatchups(false);
+  };
+
+  // Save team rosters (admin only)
+  const [editingTeams, setEditingTeams] = useState(false);
+  const [teamADraft, setTeamADraft] = useState([]);
+  const [teamBDraft, setTeamBDraft] = useState([]);
+
+  const startEditTeams = () => {
+    setTeamADraft([...teamA]);
+    setTeamBDraft([...teamB]);
+    setEditingTeams(true);
+  };
+
+  const saveTeams = async () => {
+    const current = tournament || {};
+    await setDoc(doc(db, "tournament", "config"), {
+      ...current,
+      teamA: teamADraft.filter(Boolean),
+      teamB: teamBDraft.filter(Boolean),
+    });
+    setEditingTeams(false);
+  };
+
+  const allPlayerNames = players.map((p) => p.displayName).filter(Boolean);
 
   const TABS = [
     { id: "format", label: "Format & Rules" },
@@ -245,32 +319,75 @@ export default function Tournament() {
         {/* TEAMS & MATCHUPS */}
         {tab === "teams" && (
           <div>
+            {/* Team Rosters */}
             <div className="text-center mb-8">
               <h2 className="text-pine text-xl font-bold m-0 mb-2">Teams</h2>
-              <p className="text-charcoal/50 text-sm m-0">
-                Teams will be determined by captain's pick or random draft before the event.
-              </p>
+              {isAdmin && !editingTeams && (
+                <button onClick={startEditTeams} className="mt-2 text-xs text-pine-light font-semibold bg-transparent border border-pine-light/30 px-4 py-1.5 rounded-lg cursor-pointer hover:bg-pine-light/5">
+                  Edit Teams
+                </button>
+              )}
             </div>
 
+            {/* Edit Teams Form (admin only) */}
+            {editingTeams && isAdmin && (
+              <div className="bg-white rounded-xl border-2 border-gold/30 p-6 mb-8 animate-slide-down">
+                <h3 className="text-pine text-sm font-bold m-0 mb-4">Set Team Rosters</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-emerald-700 text-xs font-bold mb-2 m-0">{teamAName}</p>
+                    {teamADraft.map((name, i) => (
+                      <div key={i} className="flex gap-2 mb-2">
+                        <select value={name} onChange={(e) => { const u = [...teamADraft]; u[i] = e.target.value; setTeamADraft(u); }}
+                          className="flex-1 p-2 border border-cream-dark rounded-lg text-sm bg-cream/30">
+                          <option value="">Select player</option>
+                          {allPlayerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                        <button onClick={() => setTeamADraft(teamADraft.filter((_, j) => j !== i))}
+                          className="text-red-400 text-xs bg-transparent border-none cursor-pointer">Remove</button>
+                      </div>
+                    ))}
+                    <button onClick={() => setTeamADraft([...teamADraft, ""])}
+                      className="text-xs text-pine-light bg-transparent border border-dashed border-pine-light/30 px-3 py-1.5 rounded-lg cursor-pointer w-full">+ Add Player</button>
+                  </div>
+                  <div>
+                    <p className="text-amber-700 text-xs font-bold mb-2 m-0">{teamBName}</p>
+                    {teamBDraft.map((name, i) => (
+                      <div key={i} className="flex gap-2 mb-2">
+                        <select value={name} onChange={(e) => { const u = [...teamBDraft]; u[i] = e.target.value; setTeamBDraft(u); }}
+                          className="flex-1 p-2 border border-cream-dark rounded-lg text-sm bg-cream/30">
+                          <option value="">Select player</option>
+                          {allPlayerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                        <button onClick={() => setTeamBDraft(teamBDraft.filter((_, j) => j !== i))}
+                          className="text-red-400 text-xs bg-transparent border-none cursor-pointer">Remove</button>
+                      </div>
+                    ))}
+                    <button onClick={() => setTeamBDraft([...teamBDraft, ""])}
+                      className="text-xs text-pine-light bg-transparent border border-dashed border-pine-light/30 px-3 py-1.5 rounded-lg cursor-pointer w-full">+ Add Player</button>
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-4">
+                  <button onClick={saveTeams} className="py-2 px-6 bg-gradient-to-r from-gold to-gold-dark text-pine font-bold text-xs rounded-lg cursor-pointer border-none">Save Teams</button>
+                  <button onClick={() => setEditingTeams(false)} className="py-2 px-6 bg-transparent text-charcoal/40 text-xs border border-cream-dark rounded-lg cursor-pointer">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Team Display */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-              {/* Team A */}
               <div className="bg-white rounded-xl border border-cream-dark overflow-hidden">
                 <div className="bg-gradient-to-r from-emerald-800 to-emerald-950 px-6 py-5 text-center">
                   <h3 className="text-white text-lg font-bold m-0">{teamAName}</h3>
-                  <p className="text-white/50 text-xs m-0 mt-1">Captain TBD</p>
                 </div>
                 <div className="p-6">
                   {teamA.length === 0 ? (
-                    <p className="text-charcoal/40 text-sm text-center font-serif italic m-0">
-                      Roster to be announced
-                    </p>
+                    <p className="text-charcoal/40 text-sm text-center font-serif italic m-0">Roster to be announced</p>
                   ) : (
                     <ul className="list-none p-0 m-0 space-y-3">
                       {teamA.map((name, i) => (
                         <li key={i} className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-emerald-800 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                            {name[0]}
-                          </div>
+                          <div className="w-8 h-8 bg-emerald-800 rounded-full flex items-center justify-center text-white text-xs font-bold">{name[0]}</div>
                           <span className="text-pine text-sm font-semibold">{name}</span>
                         </li>
                       ))}
@@ -278,25 +395,18 @@ export default function Tournament() {
                   )}
                 </div>
               </div>
-
-              {/* Team B */}
               <div className="bg-white rounded-xl border border-cream-dark overflow-hidden">
                 <div className="bg-gradient-to-r from-amber-700 to-amber-900 px-6 py-5 text-center">
                   <h3 className="text-white text-lg font-bold m-0">{teamBName}</h3>
-                  <p className="text-white/50 text-xs m-0 mt-1">Captain TBD</p>
                 </div>
                 <div className="p-6">
                   {teamB.length === 0 ? (
-                    <p className="text-charcoal/40 text-sm text-center font-serif italic m-0">
-                      Roster to be announced
-                    </p>
+                    <p className="text-charcoal/40 text-sm text-center font-serif italic m-0">Roster to be announced</p>
                   ) : (
                     <ul className="list-none p-0 m-0 space-y-3">
                       {teamB.map((name, i) => (
                         <li key={i} className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-amber-700 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                            {name[0]}
-                          </div>
+                          <div className="w-8 h-8 bg-amber-700 rounded-full flex items-center justify-center text-white text-xs font-bold">{name[0]}</div>
                           <span className="text-pine text-sm font-semibold">{name}</span>
                         </li>
                       ))}
@@ -306,9 +416,152 @@ export default function Tournament() {
               </div>
             </div>
 
-            <div className="bg-cream/50 rounded-xl border border-cream-dark p-6 text-center">
+            {/* Matchups Section */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-px flex-1 bg-cream-dark" />
+              <h2 className="text-pine text-lg m-0 whitespace-nowrap">Daily Matchups</h2>
+              <div className="h-px flex-1 bg-cream-dark" />
+            </div>
+
+            {/* Day tabs */}
+            <div className="flex gap-2 mb-6 flex-wrap justify-center">
+              {["thu", "fri", "sat"].map((day) => (
+                <button key={day} onClick={() => setMatchupDay(day)}
+                  className={`px-5 py-2 rounded-xl text-xs font-semibold border-none cursor-pointer transition-all ${
+                    matchupDay === day ? "bg-pine text-cream" : "bg-white text-charcoal/50 hover:bg-cream"
+                  }`}>
+                  {dayLabels[day].split("(")[0].trim()}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-center text-charcoal/40 text-xs mb-6 m-0 font-serif italic">
+              {dayLabels[matchupDay]}
+            </p>
+
+            {/* Admin Edit Matchups */}
+            {isAdmin && !editingMatchups && (
+              <div className="text-center mb-6">
+                <button onClick={() => startEditMatchups(matchupDay)}
+                  className="text-xs text-pine-light font-semibold bg-transparent border border-pine-light/30 px-4 py-1.5 rounded-lg cursor-pointer hover:bg-pine-light/5">
+                  Edit {matchupDay === "sat" ? "Individual" : "Pair"} Matchups
+                </button>
+              </div>
+            )}
+
+            {/* Edit Matchups Form */}
+            {editingMatchups && isAdmin && (
+              <div className="bg-white rounded-xl border-2 border-gold/30 p-6 mb-8 animate-slide-down">
+                <h3 className="text-pine text-sm font-bold m-0 mb-4">
+                  Set Matchups — {matchupDay === "sat" ? "Individual Match Play" : "2-Man Pairings"}
+                </h3>
+                <div className="space-y-4">
+                  {matchupDraft.map((m, idx) => (
+                    <div key={idx} className="bg-cream/30 rounded-xl p-4 border border-cream-dark">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-pine">Match {idx + 1}</span>
+                        <button onClick={() => removeMatchup(idx)} className="text-red-400 text-xs bg-transparent border-none cursor-pointer">Remove</button>
+                      </div>
+                      {matchupDay === "sat" ? (
+                        /* Individual matchup */
+                        <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                          <select value={m.teamAPlayer || ""} onChange={(e) => updateMatchup(idx, "teamAPlayer", e.target.value)}
+                            className="p-2 border border-emerald-300 rounded-lg text-sm bg-emerald-50">
+                            <option value="">{teamAName} player</option>
+                            {teamA.map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                          <span className="text-charcoal/30 text-xs font-bold">VS</span>
+                          <select value={m.teamBPlayer || ""} onChange={(e) => updateMatchup(idx, "teamBPlayer", e.target.value)}
+                            className="p-2 border border-amber-300 rounded-lg text-sm bg-amber-50">
+                            <option value="">{teamBName} player</option>
+                            {teamB.map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </div>
+                      ) : (
+                        /* 2-man pair matchup */
+                        <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-start">
+                          <div className="space-y-2">
+                            <select value={m.teamAPair?.[0] || ""} onChange={(e) => updateMatchup(idx, "teamAPair.0", e.target.value)}
+                              className="w-full p-2 border border-emerald-300 rounded-lg text-sm bg-emerald-50">
+                              <option value="">{teamAName} #1</option>
+                              {teamA.map((n) => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                            <select value={m.teamAPair?.[1] || ""} onChange={(e) => updateMatchup(idx, "teamAPair.1", e.target.value)}
+                              className="w-full p-2 border border-emerald-300 rounded-lg text-sm bg-emerald-50">
+                              <option value="">{teamAName} #2</option>
+                              {teamA.map((n) => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                          </div>
+                          <span className="text-charcoal/30 text-xs font-bold mt-4">VS</span>
+                          <div className="space-y-2">
+                            <select value={m.teamBPair?.[0] || ""} onChange={(e) => updateMatchup(idx, "teamBPair.0", e.target.value)}
+                              className="w-full p-2 border border-amber-300 rounded-lg text-sm bg-amber-50">
+                              <option value="">{teamBName} #1</option>
+                              {teamB.map((n) => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                            <select value={m.teamBPair?.[1] || ""} onChange={(e) => updateMatchup(idx, "teamBPair.1", e.target.value)}
+                              className="w-full p-2 border border-amber-300 rounded-lg text-sm bg-amber-50">
+                              <option value="">{teamBName} #2</option>
+                              {teamB.map((n) => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={addMatchup} className="w-full py-3 text-xs text-pine-light font-semibold bg-transparent border border-dashed border-pine-light/30 rounded-xl cursor-pointer">
+                    + Add Match
+                  </button>
+                </div>
+                <div className="flex gap-3 mt-4">
+                  <button onClick={saveMatchups} className="py-2 px-6 bg-gradient-to-r from-gold to-gold-dark text-pine font-bold text-xs rounded-lg cursor-pointer border-none">Save Matchups</button>
+                  <button onClick={() => setEditingMatchups(false)} className="py-2 px-6 bg-transparent text-charcoal/40 text-xs border border-cream-dark rounded-lg cursor-pointer">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Display Matchups */}
+            {(matchups[matchupDay] || []).length === 0 ? (
+              <p className="text-center text-charcoal/40 text-sm py-8 font-serif italic">
+                Matchups not yet announced for this day.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {matchups[matchupDay].map((m, idx) => (
+                  <div key={idx} className="bg-white rounded-xl border border-cream-dark overflow-hidden">
+                    <div className="grid grid-cols-[1fr_auto_1fr]">
+                      <div className="bg-emerald-50 p-5 text-center">
+                        {matchupDay === "sat" ? (
+                          <p className="text-emerald-800 text-sm font-bold m-0">{m.teamAPlayer || "TBD"}</p>
+                        ) : (
+                          <>
+                            <p className="text-emerald-800 text-sm font-bold m-0">{m.teamAPair?.[0] || "TBD"}</p>
+                            <p className="text-emerald-600 text-sm font-semibold m-0">{m.teamAPair?.[1] || "TBD"}</p>
+                          </>
+                        )}
+                      </div>
+                      <div className="bg-pine flex items-center px-4">
+                        <span className="text-gold font-serif font-bold text-sm">VS</span>
+                      </div>
+                      <div className="bg-amber-50 p-5 text-center">
+                        {matchupDay === "sat" ? (
+                          <p className="text-amber-800 text-sm font-bold m-0">{m.teamBPlayer || "TBD"}</p>
+                        ) : (
+                          <>
+                            <p className="text-amber-800 text-sm font-bold m-0">{m.teamBPair?.[0] || "TBD"}</p>
+                            <p className="text-amber-600 text-sm font-semibold m-0">{m.teamBPair?.[1] || "TBD"}</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="bg-cream/50 rounded-xl border border-cream-dark p-6 text-center mt-8">
               <p className="text-pine font-serif italic text-sm m-0">
-                Matchups for each day will be announced by the team captains the evening prior.
+                Matchups will be announced by the admin the evening prior.
                 Trash talk begins immediately upon announcement and is strongly encouraged.
               </p>
             </div>

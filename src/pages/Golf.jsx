@@ -96,7 +96,15 @@ export default function Golf() {
 
   const course = COURSES.find((c) => c.day === selectedDay);
 
+  // Admin can edit anyone's scores, others can only edit their own
+  const SCORE_ADMINS = ["Bret Buckler", "Bret"];
+  const isScoreAdmin = SCORE_ADMINS.some((n) =>
+    profile?.displayName?.toLowerCase() === n.toLowerCase()
+  );
+  const canEditScore = isScoreAdmin || selectedPlayer === user?.uid;
+
   const saveScore = async (hole, val) => {
+    if (!canEditScore) return;
     const key = `${selectedPlayer}-${selectedDay}`;
     const current = scores[key] || {};
     await setDoc(doc(db, "scores", key), { ...current, [hole]: val });
@@ -519,6 +527,11 @@ export default function Golf() {
                   </option>
                 ))}
               </select>
+              {!canEditScore && (
+                <p className="text-amber-600 text-xs mt-2 m-0 font-semibold">
+                  Viewing only — you can only edit your own scores
+                </p>
+              )}
             </div>
 
             {course && (
@@ -570,8 +583,9 @@ export default function Golf() {
                             max="15"
                             value={playerScores[h] || ""}
                             onChange={(e) => saveScore(h, e.target.value)}
+                            disabled={!canEditScore}
                             placeholder="–"
-                            className={`w-full h-10 text-center border border-cream-dark rounded-lg text-sm font-bold font-serif text-pine ${colorClass || "bg-white"}`}
+                            className={`w-full h-10 text-center border border-cream-dark rounded-lg text-sm font-bold font-serif text-pine ${colorClass || "bg-white"} ${!canEditScore ? "opacity-60 cursor-not-allowed" : ""}`}
                           />
                           {gross > 0 && (
                             <p className="text-charcoal/30 text-[8px] m-0 mt-0.5">
@@ -618,8 +632,9 @@ export default function Golf() {
                             max="15"
                             value={playerScores[h] || ""}
                             onChange={(e) => saveScore(h, e.target.value)}
+                            disabled={!canEditScore}
                             placeholder="–"
-                            className={`w-full h-10 text-center border border-cream-dark rounded-lg text-sm font-bold font-serif text-pine ${colorClass || "bg-white"}`}
+                            className={`w-full h-10 text-center border border-cream-dark rounded-lg text-sm font-bold font-serif text-pine ${colorClass || "bg-white"} ${!canEditScore ? "opacity-60 cursor-not-allowed" : ""}`}
                           />
                           {gross > 0 && (
                             <p className="text-charcoal/30 text-[8px] m-0 mt-0.5">
