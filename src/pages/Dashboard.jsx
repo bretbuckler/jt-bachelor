@@ -23,8 +23,8 @@ const QUICK_LINKS = [
   { path: "/casino", label: "Casino", desc: "Track your donations to Harrah's Cherokee", icon: "\uD83C\uDFB0" },
 ];
 
-const GOLFERS = ["Alex", "Bret", "Daniel", "Ferris", "JT", "James", "Josh", "Phil"];
-const ALL_ATTENDEES = ["Alex P.", "Alex", "Bret", "Daniel", "Ferris", "Gary", "Gump", "JT", "James", "Josh", "Phil", "Sturgill"];
+const GOLFERS = ["Bret", "Daniel", "Downs", "Ferris", "JT", "Josh", "Phil", "Preston"];
+const ALL_ATTENDEES = ["Bret", "Daniel", "Downs", "Ferris", "Gary", "Gump", "JT", "Josh", "Petey", "Phil", "Preston", "Swan"];
 
 const ANNOUNCEMENTS = [
   {
