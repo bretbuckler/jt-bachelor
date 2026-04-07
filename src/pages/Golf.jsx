@@ -64,7 +64,7 @@ function getStrokesPerHole(handicap) {
 
 export default function Golf() {
   const { user, profile } = useAuth();
-  const [tab, setTab] = useState("scores");
+  const [tab, setTab] = useState("leaderboard");
   const [players, setPlayers] = useState([]);
   const [scores, setScores] = useState({});
   const [selectedDay, setSelectedDay] = useState("thu");
@@ -226,7 +226,48 @@ export default function Golf() {
     };
   }, [players, scores]);
 
+  // ── MASTERS LEADERBOARD DATA ──
+  const leaderboardDay = selectedDay;
+  const leaderboardCourse = COURSES.find((c) => c.day === leaderboardDay);
+  const leaderboardData = useMemo(() => {
+    if (!leaderboardCourse) return [];
+    return players.map((p) => {
+      const s = getScoreData(p.id, leaderboardDay);
+      const pStrokes = getStrokesPerHole(p.handicap || 0);
+      let holesPlayed = 0;
+      let totalToPar = 0;
+      const holeScores = [];
+
+      for (let h = 0; h < 18; h++) {
+        const gross = parseInt(s[h + 1]) || 0;
+        if (gross > 0) {
+          holesPlayed++;
+          const net = gross - pStrokes[h];
+          const diff = net - leaderboardCourse.pars[h];
+          totalToPar += diff;
+          holeScores.push({ hole: h + 1, gross, net, par: leaderboardCourse.pars[h], diff });
+        } else {
+          holeScores.push(null);
+        }
+      }
+
+      const grossTotal = holeScores.reduce((s, h) => s + (h?.gross || 0), 0);
+
+      return {
+        id: p.id,
+        name: p.displayName,
+        handicap: p.handicap || 0,
+        holesPlayed,
+        totalToPar,
+        grossTotal,
+        holeScores,
+      };
+    }).filter((p) => p.holesPlayed > 0)
+      .sort((a, b) => a.totalToPar - b.totalToPar);
+  }, [players, scores, leaderboardDay, leaderboardCourse]);
+
   const TABS = [
+    { id: "leaderboard", label: "Leaderboard" },
     { id: "scores", label: "Score Entry" },
     { id: "standings", label: "Standings" },
     { id: "points", label: "Tournament Points" },
@@ -265,7 +306,159 @@ export default function Golf() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-6xl mx-auto px-4 py-12">
+        {/* ── MASTERS LEADERBOARD ── */}
+        {tab === "leaderboard" && (
+          <div>
+            {/* Day picker */}
+            <div className="flex gap-2 mb-6 flex-wrap justify-center">
+              {COURSES.map((c) => (
+                <button
+                  key={c.day}
+                  onClick={() => setSelectedDay(c.day)}
+                  className={`px-5 py-2 rounded-xl text-xs font-semibold border-none cursor-pointer transition-all ${
+                    selectedDay === c.day
+                      ? "bg-pine text-cream"
+                      : "bg-white text-charcoal/50 border border-cream-dark hover:bg-cream"
+                  }`}
+                >
+                  {c.dayLabel}
+                </button>
+              ))}
+            </div>
+
+            {leaderboardCourse && (
+              <div className="text-center mb-6">
+                <h2 className="text-pine text-lg font-bold m-0">{leaderboardCourse.name}</h2>
+                <p className="text-charcoal/40 text-xs m-0">Par {leaderboardCourse.par} &middot; {leaderboardCourse.format}</p>
+              </div>
+            )}
+
+            {leaderboardData.length === 0 ? (
+              <p className="text-center text-charcoal/40 text-sm py-12 font-serif italic">
+                No scores entered for this day yet.
+              </p>
+            ) : (
+              <div className="bg-pine rounded-2xl overflow-hidden shadow-xl">
+                {/* Header */}
+                <div className="bg-pine-dark px-3 py-3 text-center border-b border-white/10">
+                  <h3 className="text-gold font-serif font-bold text-lg m-0 tracking-wide">LEADERS</h3>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" style={{ minWidth: 700 }}>
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left px-3 py-2 text-gold/60 text-[10px] tracking-wider uppercase font-semibold w-8">
+                          <span className="text-[8px]">TO<br/>PAR</span>
+                        </th>
+                        <th className="text-left px-2 py-2 text-cream/80 text-[10px] tracking-wider uppercase font-semibold">
+                          PLAYER
+                        </th>
+                        <th className="text-center px-1 py-2 text-cream/40 text-[10px] font-semibold">THRU</th>
+                        {Array.from({ length: 18 }, (_, i) => (
+                          <th key={i} className="text-center px-0 py-2 text-cream/40 text-[10px] font-semibold w-8">
+                            {i + 1}
+                          </th>
+                        ))}
+                        <th className="text-center px-2 py-2 text-cream/60 text-[10px] font-semibold">TOT</th>
+                      </tr>
+                      {/* Par row */}
+                      <tr className="border-b border-white/10 bg-white/5">
+                        <td className="px-3 py-1"></td>
+                        <td className="px-2 py-1 text-cream/40 text-[10px] font-bold">PAR</td>
+                        <td className="px-1 py-1"></td>
+                        {leaderboardCourse?.pars.map((p, i) => (
+                          <td key={i} className="text-center px-0 py-1 text-cream/40 text-[10px] font-bold">{p}</td>
+                        ))}
+                        <td className="text-center px-2 py-1 text-cream/40 text-[10px] font-bold">{leaderboardCourse?.par}</td>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboardData.map((player, idx) => (
+                        <tr key={player.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          {/* To Par */}
+                          <td className="px-3 py-2.5">
+                            <span className={`font-bold font-serif text-base ${
+                              player.totalToPar < 0 ? "text-red-400" :
+                              player.totalToPar === 0 ? "text-green-400" :
+                              "text-cream/60"
+                            }`}>
+                              {player.totalToPar === 0 ? "E" :
+                               player.totalToPar > 0 ? `+${player.totalToPar}` :
+                               player.totalToPar}
+                            </span>
+                          </td>
+                          {/* Name */}
+                          <td className="px-2 py-2.5">
+                            <span className="text-cream font-bold text-xs uppercase tracking-wide">
+                              {player.name}
+                            </span>
+                          </td>
+                          {/* Thru */}
+                          <td className="text-center px-1 py-2.5 text-cream/40 text-xs">
+                            {player.holesPlayed === 18 ? "F" : player.holesPlayed}
+                          </td>
+                          {/* Hole scores */}
+                          {player.holeScores.map((h, i) => (
+                            <td key={i} className="text-center px-0 py-2.5">
+                              {h ? (
+                                <span className={`inline-flex items-center justify-center w-6 h-6 text-[11px] font-bold rounded-full ${
+                                  h.diff <= -2 ? "bg-yellow-400 text-yellow-900" :
+                                  h.diff === -1 ? "bg-red-500 text-white" :
+                                  h.diff === 0 ? "text-green-400" :
+                                  h.diff === 1 ? "text-cream/50" :
+                                  "bg-blue-900/50 text-blue-300"
+                                }`}>
+                                  {h.gross}
+                                </span>
+                              ) : (
+                                <span className="text-cream/10 text-[10px]">–</span>
+                              )}
+                            </td>
+                          ))}
+                          {/* Total */}
+                          <td className="text-center px-2 py-2.5">
+                            <span className="text-cream font-bold font-serif">{player.grossTotal}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Legend */}
+                <div className="bg-pine-dark px-4 py-3 flex items-center justify-center gap-4 border-t border-white/10">
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block w-4 h-4 rounded-full bg-yellow-400"></span>
+                    <span className="text-cream/40 text-[9px]">Eagle</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block w-4 h-4 rounded-full bg-red-500"></span>
+                    <span className="text-cream/40 text-[9px]">Birdie</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-green-400 text-[11px] font-bold">4</span>
+                    <span className="text-cream/40 text-[9px]">Par</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-cream/50 text-[11px] font-bold">5</span>
+                    <span className="text-cream/40 text-[9px]">Bogey</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-900/50 text-blue-300 text-[9px] font-bold">6</span>
+                    <span className="text-cream/40 text-[9px]">Double+</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <p className="text-center text-charcoal/30 text-[10px] mt-4">
+              Net scores (handicap-adjusted) &middot; Sorted by to-par &middot; Updates in real-time
+            </p>
+          </div>
+        )}
+
         {/* ── SCORE ENTRY ── */}
         {tab === "scores" && (
           <div>
