@@ -14,6 +14,7 @@ import Travel from "./pages/Travel";
 import Tournament from "./pages/Tournament";
 import Golf from "./pages/Golf";
 import Casino from "./pages/Casino";
+import DailyReport from "./pages/DailyReport";
 
 function AppLayout({ children }) {
   return (
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="/tournament" element={<ProtectedRoute><AppLayout><Tournament /></AppLayout></ProtectedRoute>} />
           <Route path="/golf" element={<ProtectedRoute><AppLayout><Golf /></AppLayout></ProtectedRoute>} />
           <Route path="/casino" element={<ProtectedRoute><AppLayout><Casino /></AppLayout></ProtectedRoute>} />
+          <Route path="/report" element={<ProtectedRoute><AppLayout><DailyReport /></AppLayout></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
