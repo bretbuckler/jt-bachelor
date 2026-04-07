@@ -172,7 +172,7 @@ export default function Dashboard() {
             excuses regarding your score.
           </p>
           <a
-            href="https://weather.com/weather/tenday/l/Cherokee+NC"
+            href="https://weather.com/weather/tenday/l/Whittier+NC+28789"
             target="_blank"
             rel="noopener"
             className="inline-block mt-3 text-pine-light text-xs font-semibold no-underline border-b border-pine-light/30 hover:border-pine-light transition-colors"
