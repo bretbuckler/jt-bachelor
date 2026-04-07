@@ -63,14 +63,31 @@ export default function Travel() {
     }
   }, [travelData, user?.uid]);
 
+  const sanitize = (str, maxLen = 50) =>
+    str.replace(/[<>{}$]/g, "").slice(0, maxLen).trim();
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
-    await setDoc(doc(db, "travel", user.uid), {
-      ...form,
+
+    const clean = {
+      departureCity: sanitize(form.departureCity),
+      arrivalAirport: AIRPORTS.includes(form.arrivalAirport) ? form.arrivalAirport : "",
+      arrivalDate: form.arrivalDate,
+      arrivalTime: form.arrivalTime,
+      departureDate: form.departureDate,
+      departureTime: form.departureTime,
+      airline: sanitize(form.airline, 30),
+      flightNumber: sanitize(form.flightNumber, 15).replace(/[^a-zA-Z0-9]/g, ""),
+      needsRide: !!form.needsRide,
+      canDrive: !!form.canDrive,
+      seats: form.seats ? Math.min(Math.max(Math.round(Number(form.seats)), 0), 10).toString() : "",
+      notes: sanitize(form.notes, 200),
       uid: user.uid,
       displayName: profile?.displayName || user.email,
-    });
+    };
+
+    await setDoc(doc(db, "travel", user.uid), clean);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
