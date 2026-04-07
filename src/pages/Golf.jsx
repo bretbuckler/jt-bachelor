@@ -14,8 +14,9 @@ const COURSES = [
     name: "Sequoyah National Golf Club",
     par: 72,
     format: "2-Man Scramble",
-    // Placeholder pars — replace with real scorecard
-    pars: [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 4, 5],
+    //        H1  H2  H3  H4  H5  H6  H7  H8  H9  H10 H11 H12 H13 H14 H15 H16 H17 H18
+    pars:   [ 5,  3,  5,  4,  4,  3,  4,  3,  5,   4,  5,  5,  3,  4,  4,  4,  3,  4],
+    hdcps:  [ 5, 11,  7,  9, 15,  1, 13, 17,  3,   6, 10,  2,  8, 18, 14, 16,  4, 12],
   },
   {
     day: "fri",
@@ -23,7 +24,8 @@ const COURSES = [
     name: "Smoky Mountain Country Club",
     par: 71,
     format: "Best Ball / Alt Shot",
-    pars: [4, 4, 3, 5, 4, 4, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5],
+    pars:   [ 4,  4,  4,  4,  5,  5,  3,  5,  3,   3,  4,  4,  3,  5,  5,  3,  3,  4],
+    hdcps:  [ 7, 15, 17,  9,  5,  3, 13,  1, 11,   4,  2, 18, 16,  6, 10,  8, 14, 12],
   },
   {
     day: "sat",
@@ -31,7 +33,8 @@ const COURSES = [
     name: "Laurel Ridge Country Club",
     par: 72,
     format: "Individual Match Play",
-    pars: [4, 5, 3, 4, 4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5],
+    pars:   [ 4,  4,  3,  4,  5,  4,  5,  3,  4,   3,  5,  4,  4,  4,  5,  4,  3,  4],
+    hdcps:  [13,  9, 15,  5,  7, 11,  1, 17,  3,  14,  2,  6, 16,  8, 12,  4, 18, 10],
   },
 ];
 
@@ -52,12 +55,17 @@ const BETS = [
 ];
 
 // ── HANDICAP STROKES ──
-// Distributes handicap strokes across 18 holes (hardest holes get strokes first)
-// For simplicity, strokes go 1-18 in order; ideally use course handicap index
-function getStrokesPerHole(handicap) {
+// Distributes handicap strokes using course handicap index (hardest holes first)
+// hdcps array: 1 = hardest hole, 18 = easiest hole
+function getStrokesPerHole(handicap, hdcps) {
   const strokes = new Array(18).fill(0);
+  if (!hdcps) return strokes;
+  // Sort hole indices by difficulty (lowest hdcp = hardest = gets strokes first)
+  const sortedByDifficulty = hdcps
+    .map((h, i) => ({ holeIndex: i, difficulty: h }))
+    .sort((a, b) => a.difficulty - b.difficulty);
   for (let i = 0; i < Math.min(handicap, 36); i++) {
-    strokes[i % 18]++;
+    strokes[sortedByDifficulty[i % 18].holeIndex]++;
   }
   return strokes;
 }
@@ -106,7 +114,7 @@ export default function Golf() {
   const playerScores = getScoreData(selectedPlayer, selectedDay);
   const currentPlayer = players.find((p) => p.id === selectedPlayer);
   const handicap = currentPlayer?.handicap || 0;
-  const strokesPerHole = getStrokesPerHole(handicap);
+  const strokesPerHole = getStrokesPerHole(handicap, course?.hdcps);
 
   const frontTotal = front9.reduce((s, h) => s + (parseInt(playerScores[h]) || 0), 0);
   const backTotal = back9.reduce((s, h) => s + (parseInt(playerScores[h]) || 0), 0);
@@ -151,7 +159,7 @@ export default function Golf() {
         }
 
         roundsPlayed++;
-        const pStrokes = getStrokesPerHole(p.handicap || 0);
+        const pStrokes = getStrokesPerHole(p.handicap || 0, c.hdcps);
         let dayGross = 0;
         let dayNet = 0;
         let dayBirdies = 0;
@@ -373,6 +381,16 @@ export default function Golf() {
                         ))}
                         <td className="text-center px-2 py-1 text-cream/40 text-[10px] font-bold">{leaderboardCourse?.par}</td>
                       </tr>
+                      {/* Handicap index row */}
+                      <tr className="border-b border-white/10">
+                        <td className="px-3 py-0.5"></td>
+                        <td className="px-2 py-0.5 text-cream/20 text-[8px]">HDCP</td>
+                        <td className="px-1 py-0.5"></td>
+                        {leaderboardCourse?.hdcps.map((h, i) => (
+                          <td key={i} className="text-center px-0 py-0.5 text-cream/20 text-[8px]">{h}</td>
+                        ))}
+                        <td className="px-2 py-0.5"></td>
+                      </tr>
                     </thead>
                     <tbody>
                       {leaderboardData.map((player, idx) => (
@@ -453,9 +471,15 @@ export default function Golf() {
               </div>
             )}
 
-            <p className="text-center text-charcoal/30 text-[10px] mt-4">
-              Net scores (handicap-adjusted) &middot; Sorted by to-par &middot; Updates in real-time
-            </p>
+            <div className="bg-white rounded-xl border border-cream-dark p-4 mt-6 text-center">
+              <p className="text-pine text-xs font-semibold m-0 mb-1">How the Leaderboard Works</p>
+              <p className="text-charcoal/50 text-[11px] m-0 leading-relaxed">
+                Positions are determined by <strong>net scores</strong> (gross score minus handicap strokes).
+                Handicap strokes are allocated per hole based on each course's official difficulty ranking
+                &mdash; harder holes receive strokes first. This levels the playing field so everyone competes
+                fairly regardless of skill level. Updates in real-time as scores are entered.
+              </p>
+            </div>
           </div>
         )}
 
