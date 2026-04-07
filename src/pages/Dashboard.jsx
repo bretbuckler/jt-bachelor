@@ -20,6 +20,7 @@ const QUICK_LINKS = [
   { path: "/board", label: "The Board", desc: "Post, claim, and seek reimbursement", icon: "\uD83D\uDCCB" },
   { path: "/photos", label: "Photos", desc: "Document the evidence", icon: "\uD83D\uDCF8" },
   { path: "/golf", label: "Golf HQ", desc: "Scores, standings, and side action", icon: "\uD83C\uDFCC\uFE0F" },
+  { path: "/casino", label: "Casino", desc: "Track your donations to Harrah's Cherokee", icon: "\uD83C\uDFB0" },
 ];
 
 const GOLFERS = ["Alex", "Bret", "Daniel", "Ferris", "JT", "James", "Josh", "Phil"];
