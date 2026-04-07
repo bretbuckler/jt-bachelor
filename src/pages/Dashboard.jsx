@@ -24,7 +24,7 @@ const QUICK_LINKS = [
 ];
 
 const GOLFERS = ["Bret", "Daniel", "Downs", "Ferris", "JT", "Josh", "Phil", "Preston"];
-const ALL_ATTENDEES = ["Bret", "Daniel", "Downs", "Ferris", "Gary", "Gump", "JT", "Josh", "Petey", "Phil", "Preston", "Swan"];
+const ALL_ATTENDEES = ["Bret", "Daniel", "Downs", "Ferris", "Gary", "Rob Dollaz", "JT", "Josh", "Petey", "Phil", "Preston", "Swan"];
 
 const ANNOUNCEMENTS = [
   {
