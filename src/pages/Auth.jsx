@@ -147,9 +147,9 @@ export default function Auth() {
             : "Forgot your password? The Committee recommends trying harder."}
         </p>
 
-        <p className="text-cream/10 text-[9px] text-center mt-12 font-serif italic leading-relaxed max-w-xs mx-auto">
+        <p className="text-cream/30 text-[11px] text-center mt-12 font-serif italic leading-relaxed max-w-xs mx-auto">
           "You'll lose a lot of money chasing women but you'll never lose women while chasing money"
-          <span className="block mt-1 text-cream/8">&mdash; Phil</span>
+          <span className="block mt-1 text-cream/20">&mdash; Phil</span>
         </p>
       </div>
     </div>
