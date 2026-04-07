@@ -22,8 +22,12 @@ export default function Auth() {
     setLoading(true);
     try {
       if (isRegister) {
-        if (!displayName.trim()) { setError("Enter your name, champ."); setLoading(false); return; }
-        await register(email, password, displayName.trim(), handicap);
+        const cleanName = displayName.trim().replace(/[^a-zA-Z\s'-]/g, "").slice(0, 40);
+        if (!cleanName) { setError("Enter a real name, champ. Letters only."); setLoading(false); return; }
+        if (cleanName.length < 2) { setError("Name must be at least 2 characters."); setLoading(false); return; }
+        const hcpNum = handicap ? Math.min(Math.max(Math.round(Number(handicap)), 0), 54) : 0;
+        if (handicap && isNaN(Number(handicap))) { setError("Handicap must be a number (0-54)."); setLoading(false); return; }
+        await register(email, password, cleanName, hcpNum);
       } else {
         await login(email, password);
       }
