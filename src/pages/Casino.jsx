@@ -102,6 +102,14 @@ export default function Casino() {
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-12">
+        {/* Phil Quote */}
+        <div className="bg-pine rounded-2xl p-8 text-center mb-10 border border-gold/20">
+          <p className="text-gold font-serif italic text-lg md:text-xl m-0 leading-relaxed">
+            "You'll lose a lot of money chasing women but you'll never lose women while chasing money."
+          </p>
+          <p className="text-cream/40 text-xs mt-3 m-0 tracking-wider uppercase">&mdash; Phil</p>
+        </div>
+
         {/* Group Stats */}
         <div className="grid grid-cols-3 gap-4 mb-10">
           <div className="bg-white rounded-xl border border-cream-dark p-6 text-center">
@@ -303,9 +311,9 @@ export default function Casino() {
 
         <div className="bg-cream/50 rounded-xl border border-cream-dark p-6 text-center mt-10">
           <p className="text-pine font-serif italic text-sm m-0">
-            "You'll lose a lot of money chasing women but you'll never lose women while chasing money."
+            "The house always wins. But the memories of watching your friends lose are priceless."
           </p>
-          <p className="text-charcoal/30 text-[10px] mt-2 m-0">&mdash; Phil</p>
+          <p className="text-charcoal/30 text-[10px] mt-2 m-0">&mdash; The Committee</p>
         </div>
       </div>
     </div>
