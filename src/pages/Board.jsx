@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   collection, addDoc, onSnapshot, query, orderBy, serverTimestamp,
 } from "firebase/firestore";
@@ -20,7 +20,25 @@ export default function Board() {
   const [message, setMessage] = useState("");
   const [amount, setAmount] = useState("");
   const [imageFile, setImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (file) => {
+    if (!file) {
+      setImageFile(null);
+      setImagePreviewUrl(null);
+      return;
+    }
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearImageFile = () => {
+    setImageFile(null);
+    setImagePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   useEffect(() => {
     const q = query(collection(db, "board_posts"), orderBy("createdAt", "desc"));
@@ -54,7 +72,7 @@ export default function Board() {
 
     setMessage("");
     setAmount("");
-    setImageFile(null);
+    clearImageFile();
     setPostType("general");
     setShowForm(false);
     setSubmitting(false);
@@ -74,13 +92,13 @@ export default function Board() {
       <div className="bg-pine">
         <div className="max-w-5xl mx-auto px-6 py-14 text-center">
           <p className="text-gold/50 text-xs tracking-[0.2em] uppercase m-0 mb-3">
-            The Bulletin Board of Distinguished Gentlemen
+            Est. The Last Time Gary Forgot His Wallet
           </p>
           <h1 className="text-cream text-3xl md:text-4xl font-bold m-0">
-            The Board
+            Gary's Ledger
           </h1>
           <p className="text-cream/40 text-sm mt-2 m-0 font-serif italic">
-            Post what you're bringing, submit receipts, or just speak your mind
+            All debts recorded. No debts forgiven.
           </p>
         </div>
       </div>
@@ -165,14 +183,58 @@ export default function Board() {
 
             <div className="mb-4">
               <label className="block text-charcoal/40 text-[11px] tracking-wider uppercase mb-2">
-                Attach Image (optional)
+                {postType === "receipt" ? "Receipt Photo (optional)" : "Attach Image (optional)"}
               </label>
+
               <input
+                ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={(e) => setImageFile(e.target.files[0])}
-                className="text-sm text-charcoal/60"
+                onChange={(e) => handleFileChange(e.target.files[0])}
+                className="hidden"
               />
+
+              {!imageFile ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full border-2 border-dashed border-gold rounded-xl p-5 text-center cursor-pointer bg-gold/10 hover:bg-gold/20 hover:border-gold-dark transition-all"
+                >
+                  <svg className="w-8 h-8 mx-auto mb-2 text-pine" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 12v6m0-6l-2 2m2-2l2 2" />
+                  </svg>
+                  <p className="text-pine text-sm font-bold m-0">
+                    {postType === "receipt" ? "Snap or choose a receipt photo" : "Click to choose an image"}
+                  </p>
+                  <p className="text-pine/60 text-[11px] mt-1 m-0">JPG, PNG, HEIC, etc.</p>
+                </button>
+              ) : (
+                <div className="border-2 border-cream-dark rounded-xl p-4 bg-cream/20">
+                  <div className="flex gap-4 items-start">
+                    {imagePreviewUrl && (
+                      <img
+                        src={imagePreviewUrl}
+                        alt="Preview"
+                        className="w-20 h-20 object-cover rounded-lg border border-cream-dark shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-pine text-sm font-semibold m-0 truncate">{imageFile.name}</p>
+                      <p className="text-charcoal/40 text-xs m-0 mt-1">
+                        {(imageFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+                      <button
+                        type="button"
+                        onClick={clearImageFile}
+                        className="mt-2 text-xs text-red-600 hover:text-red-700 bg-transparent border-none cursor-pointer p-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button
@@ -180,7 +242,7 @@ export default function Board() {
               disabled={submitting || !message.trim()}
               className="py-3 px-8 bg-gradient-to-r from-gold to-gold-dark text-pine font-bold text-sm rounded-xl cursor-pointer border-none disabled:opacity-50 hover:brightness-110 transition-all"
             >
-              {submitting ? "Posting..." : "Post to The Board"}
+              {submitting ? "Posting..." : "Post to the Ledger"}
             </button>
           </form>
         )}
@@ -189,7 +251,7 @@ export default function Board() {
         <div className="space-y-4">
           {posts.length === 0 && (
             <p className="text-center text-charcoal/40 text-sm py-12 font-serif italic">
-              The Board is empty. Be the first to post, you trailblazer.
+              The ledger is empty. Gary is thrilled. Be the first to post, you trailblazer.
             </p>
           )}
           {posts.map((post) => {

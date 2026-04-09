@@ -18,7 +18,7 @@ const QUICK_LINKS = [
   { path: "/courses", label: "Pro Shop", desc: "Three rounds of mountain golf glory", icon: "\u26F3" },
   { path: "/tournament", label: "Tournament Info", desc: "The Inaugural JT Memorial Ryder Cup", icon: "\uD83C\uDFC6" },
   { path: "/golf", label: "Scorecard", desc: "Leaderboard, match play, and standings", icon: "\uD83C\uDFCC\uFE0F" },
-  { path: "/board", label: "The Board", desc: "Post, claim, and seek reimbursement", icon: "\uD83D\uDCCB" },
+  { path: "/board", label: "Gary's Ledger", desc: "Receipts, reimbursements, and running tabs", icon: "\uD83D\uDCCB" },
   { path: "/photos", label: "Photos", desc: "Document the evidence", icon: "\uD83D\uDCF8" },
   { path: "/casino", label: "Casino", desc: "Track your donations to Harrah's Cherokee", icon: "\uD83C\uDFB0" },
   { path: "/report", label: "Daily Report", desc: "Full summary for the big screen", icon: "\uD83D\uDCC4" },

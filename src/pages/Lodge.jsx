@@ -14,7 +14,7 @@ const HOUSE_RULES = [
   {
     article: "III",
     title: "Kitchen & Common Areas",
-    rule: "All members shall clean up after themselves. The dishwasher is not decorative. If you use the last of something, add it to The Board so someone can pick it up. The grill is communal property and shall be treated with the reverence it deserves.",
+    rule: "All members shall clean up after themselves. The dishwasher is not decorative. If you use the last of something, add it to Gary's Ledger so someone can pick it up. The grill is communal property and shall be treated with the reverence it deserves.",
   },
   {
     article: "IV",

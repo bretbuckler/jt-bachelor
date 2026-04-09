@@ -248,10 +248,10 @@ export default function DailyReport() {
           {/* ── BOARD POSTS ── */}
           <div className="mb-8">
             <h3 className="text-pine text-lg font-bold m-0 mb-4 flex items-center gap-2">
-              <span>&#128203;</span> Recent Board Posts
+              <span>&#128203;</span> Recent Ledger Entries
             </h3>
             {recentPosts.length === 0 ? (
-              <p className="text-charcoal/40 text-sm font-serif italic">No board posts yet.</p>
+              <p className="text-charcoal/40 text-sm font-serif italic">No ledger entries yet.</p>
             ) : (
               <div className="space-y-2">
                 {recentPosts.map((post) => (
