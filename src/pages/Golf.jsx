@@ -70,6 +70,55 @@ function getStrokesPerHole(handicap, hdcps) {
   return strokes;
 }
 
+// ── TEAM HANDICAP CALCULATORS ──
+// Scramble: 35% low + 15% high (USGA)
+// Alt Shot: 50% combined
+function getTeamHandicap(hcp1, hcp2, format) {
+  const low = Math.min(hcp1, hcp2);
+  const high = Math.max(hcp1, hcp2);
+  if (format === "scramble") return Math.round(0.35 * low + 0.15 * high);
+  if (format === "altshot") return Math.round(0.5 * (low + high));
+  return 0;
+}
+
+// ── MATCH PLAY STATUS CALCULATOR ──
+// Returns { status: "1UP" | "AS" | "2&1" | "F" | "thru", aUp: number, holesPlayed: number, clinched: bool }
+function calcMatchStatus(teamAHoles, teamBHoles) {
+  // teamAHoles and teamBHoles are arrays of 18 numbers (net score per hole) or null
+  let aUp = 0;
+  let holesPlayed = 0;
+  for (let h = 0; h < 18; h++) {
+    const a = teamAHoles[h];
+    const b = teamBHoles[h];
+    if (a == null || b == null || a <= 0 || b <= 0) continue;
+    holesPlayed++;
+    if (a < b) aUp++;
+    else if (a > b) aUp--;
+  }
+  const holesRemaining = 18 - holesPlayed;
+  const lead = Math.abs(aUp);
+  const leader = aUp > 0 ? "A" : aUp < 0 ? "B" : "tied";
+  // Match clinched if lead > remaining holes
+  if (lead > holesRemaining && holesPlayed > 0) {
+    return {
+      status: `${lead}&${holesRemaining}`,
+      leader, aUp, holesPlayed, clinched: true, final: true,
+    };
+  }
+  // Finished 18 holes
+  if (holesPlayed === 18) {
+    return {
+      status: lead === 0 ? "HALVED" : `${lead}UP`,
+      leader, aUp, holesPlayed, clinched: false, final: true,
+    };
+  }
+  // In progress
+  return {
+    status: lead === 0 ? "AS" : `${lead}UP`,
+    leader, aUp, holesPlayed, clinched: false, final: false,
+  };
+}
+
 export default function Golf() {
   const { user, profile } = useAuth();
   const [tab, setTab] = useState("leaderboard");
@@ -77,6 +126,8 @@ export default function Golf() {
   const [scores, setScores] = useState({});
   const [selectedDay, setSelectedDay] = useState("thu");
   const [selectedPlayer, setSelectedPlayer] = useState("");
+  const [matchScores, setMatchScores] = useState({});
+  const [tournament, setTournament] = useState(null);
 
   useEffect(() => {
     const unsub1 = onSnapshot(query(collection(db, "users")), (snap) => {
@@ -87,7 +138,15 @@ export default function Golf() {
       snap.docs.forEach((d) => { s[d.id] = d.data(); });
       setScores(s);
     });
-    return () => { unsub1(); unsub2(); };
+    const unsub3 = onSnapshot(query(collection(db, "match_scores")), (snap) => {
+      const s = {};
+      snap.docs.forEach((d) => { s[d.id] = d.data(); });
+      setMatchScores(s);
+    });
+    const unsub4 = onSnapshot(doc(db, "tournament", "config"), (snap) => {
+      if (snap.exists()) setTournament(snap.data());
+    });
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
   }, []);
 
   useEffect(() => {
@@ -108,6 +167,16 @@ export default function Golf() {
     const key = `${selectedPlayer}-${selectedDay}`;
     const current = scores[key] || {};
     await setDoc(doc(db, "scores", key), { ...current, [hole]: val });
+  };
+
+  const saveMatchScore = async (day, matchIdx, team, hole, val) => {
+    const key = `${day}-match${matchIdx}`;
+    const current = matchScores[key] || { day, matchIdx, teamAHoles: {}, teamBHoles: {} };
+    const field = team === "A" ? "teamAHoles" : "teamBHoles";
+    await setDoc(doc(db, "match_scores", key), {
+      ...current,
+      [field]: { ...(current[field] || {}), [hole]: val },
+    });
   };
 
   const getScoreData = (playerId, day) => scores[`${playerId}-${day}`] || {};
@@ -289,8 +358,132 @@ export default function Golf() {
       .sort((a, b) => a.totalToPar - b.totalToPar);
   }, [players, scores, leaderboardDay, leaderboardCourse]);
 
+  // ── MATCH PLAY DATA ──
+  const matchups = tournament?.matchups || { thu: [], fri: [], sat: [] };
+
+  // Find a player by displayName
+  const findPlayer = (name) => players.find((p) => p.displayName === name);
+
+  // Get net score per hole for a player on a given day
+  const getPlayerNetHoles = (playerId, day, dayHdcps) => {
+    const s = getScoreData(playerId, day);
+    const p = players.find((pl) => pl.id === playerId);
+    if (!p) return new Array(18).fill(null);
+    const pStrokes = getStrokesPerHole(p.handicap || 0, dayHdcps);
+    return Array.from({ length: 18 }, (_, i) => {
+      const g = parseInt(s[i + 1]) || 0;
+      return g > 0 ? g - pStrokes[i] : null;
+    });
+  };
+
+  // Get team net score per hole for team formats
+  // Format: "scramble" | "altshot" | "bestball"
+  // For scramble/altshot: uses match_scores doc (team entry)
+  // For bestball: uses lower net of two players' individual scores
+  const getTeamNetHoles = (matchup, day, side, format, dayHdcps) => {
+    const course = COURSES.find((c) => c.day === day);
+    if (!course) return new Array(18).fill(null);
+    const pair = side === "A" ? matchup.teamAPair : matchup.teamBPair;
+    if (!pair || pair.length < 2) return new Array(18).fill(null);
+
+    if (format === "bestball") {
+      // Lower net of both players per hole
+      const p1 = findPlayer(pair[0]);
+      const p2 = findPlayer(pair[1]);
+      if (!p1 || !p2) return new Array(18).fill(null);
+      const n1 = getPlayerNetHoles(p1.id, day, dayHdcps);
+      const n2 = getPlayerNetHoles(p2.id, day, dayHdcps);
+      return n1.map((v, i) => {
+        if (v == null && n2[i] == null) return null;
+        if (v == null) return n2[i];
+        if (n2[i] == null) return v;
+        return Math.min(v, n2[i]);
+      });
+    }
+
+    // Scramble or Alt Shot: team score from match_scores doc
+    const matchKey = `${day}-match${matchup._idx}`;
+    const data = matchScores[matchKey];
+    if (!data) return new Array(18).fill(null);
+    const holes = side === "A" ? data.teamAHoles : data.teamBHoles;
+    if (!holes) return new Array(18).fill(null);
+
+    // Apply team handicap strokes
+    const p1 = findPlayer(pair[0]);
+    const p2 = findPlayer(pair[1]);
+    const teamHcp = p1 && p2 ? getTeamHandicap(p1.handicap || 0, p2.handicap || 0, format) : 0;
+    const teamStrokes = getStrokesPerHole(teamHcp, dayHdcps);
+
+    return Array.from({ length: 18 }, (_, i) => {
+      const g = parseInt(holes[i + 1]) || 0;
+      return g > 0 ? g - teamStrokes[i] : null;
+    });
+  };
+
+  // Get individual net scores for Day 3
+  const getIndividualNetHoles = (playerName, day, dayHdcps) => {
+    const p = findPlayer(playerName);
+    if (!p) return new Array(18).fill(null);
+    return getPlayerNetHoles(p.id, day, dayHdcps);
+  };
+
+  // Compute full match data for a matchup
+  const computeMatchData = (matchup, day) => {
+    const course = COURSES.find((c) => c.day === day);
+    if (!course) return null;
+
+    let teamANet, teamBNet;
+
+    if (day === "thu") {
+      // 2-Man Scramble (gross from match_scores, with team handicap)
+      teamANet = getTeamNetHoles(matchup, day, "A", "scramble", course.hdcps);
+      teamBNet = getTeamNetHoles(matchup, day, "B", "scramble", course.hdcps);
+    } else if (day === "fri") {
+      // Front 9: Best Ball (from individual scores)
+      // Back 9: Alt Shot (from match_scores with team handicap)
+      const bbA = getTeamNetHoles(matchup, day, "A", "bestball", course.hdcps);
+      const bbB = getTeamNetHoles(matchup, day, "B", "bestball", course.hdcps);
+      const asA = getTeamNetHoles(matchup, day, "A", "altshot", course.hdcps);
+      const asB = getTeamNetHoles(matchup, day, "B", "altshot", course.hdcps);
+      teamANet = bbA.map((v, i) => i < 9 ? v : asA[i]);
+      teamBNet = bbB.map((v, i) => i < 9 ? v : asB[i]);
+    } else {
+      // Individual Match Play (from individual scores)
+      teamANet = getIndividualNetHoles(matchup.teamAPlayer, day, course.hdcps);
+      teamBNet = getIndividualNetHoles(matchup.teamBPlayer, day, course.hdcps);
+    }
+
+    return {
+      teamANet,
+      teamBNet,
+      status: calcMatchStatus(teamANet, teamBNet),
+    };
+  };
+
+  // Compute team points total across all days
+  const teamPoints = useMemo(() => {
+    let aPts = 0, bPts = 0;
+    ["thu", "fri", "sat"].forEach((day) => {
+      const dayMatchups = matchups[day] || [];
+      dayMatchups.forEach((m, idx) => {
+        const data = computeMatchData({ ...m, _idx: idx }, day);
+        if (!data || !data.status.final) return;
+        if (data.status.status === "HALVED") {
+          aPts += 0.5;
+          bPts += 0.5;
+        } else if (data.status.leader === "A") {
+          aPts += 1;
+        } else if (data.status.leader === "B") {
+          bPts += 1;
+        }
+      });
+    });
+    return { a: aPts, b: bPts };
+  }, [matchups, matchScores, scores, players]);
+
   const TABS = [
     { id: "leaderboard", label: "Leaderboard" },
+    { id: "matchplay", label: "Match Play" },
     { id: "scores", label: "Score Entry" },
     { id: "standings", label: "Standings" },
     { id: "points", label: "Tournament Points" },
@@ -473,6 +666,302 @@ export default function Golf() {
                 fairly regardless of skill level. Updates in real-time as scores are entered.
               </p>
             </div>
+          </div>
+        )}
+
+        {/* ── MATCH PLAY ── */}
+        {tab === "matchplay" && (
+          <div>
+            {/* Team Scoreboard */}
+            <div className="bg-white rounded-2xl border border-cream-dark overflow-hidden mb-8">
+              <div className="grid grid-cols-3">
+                <div className="bg-gradient-to-b from-emerald-800 to-emerald-950 p-6 text-center">
+                  <p className="text-white/50 text-[10px] tracking-wider uppercase m-0 mb-1">
+                    {tournament?.teamAName || "Team Birdie Juice"}
+                  </p>
+                  <p className="text-white text-4xl md:text-5xl font-bold font-serif m-0">
+                    {teamPoints.a}
+                  </p>
+                </div>
+                <div className="bg-pine flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-gold/40 text-[10px] tracking-wider uppercase m-0 mb-1">Cup Score</p>
+                    <p className="text-cream text-xl font-serif font-bold m-0">VS</p>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-b from-amber-700 to-amber-900 p-6 text-center">
+                  <p className="text-white/50 text-[10px] tracking-wider uppercase m-0 mb-1">
+                    {tournament?.teamBName || "Team Shank Redemption"}
+                  </p>
+                  <p className="text-white text-4xl md:text-5xl font-bold font-serif m-0">
+                    {teamPoints.b}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Day picker */}
+            <div className="flex gap-2 mb-6 flex-wrap justify-center">
+              {COURSES.map((c) => (
+                <button
+                  key={c.day}
+                  onClick={() => setSelectedDay(c.day)}
+                  className={`px-5 py-2 rounded-xl text-xs font-semibold border-none cursor-pointer transition-all ${
+                    selectedDay === c.day
+                      ? "bg-pine text-cream"
+                      : "bg-white text-charcoal/50 border border-cream-dark hover:bg-cream"
+                  }`}
+                >
+                  {c.dayLabel}
+                </button>
+              ))}
+            </div>
+
+            {/* Format description */}
+            <div className="text-center mb-6">
+              <p className="text-charcoal/40 text-xs m-0">
+                {selectedDay === "thu" && "2-Man Scramble \u2014 One ball per team, designated scorer enters team score"}
+                {selectedDay === "fri" && "Best Ball (F9) / Alt Shot (B9) \u2014 F9 auto-calculates from individual scores, B9 requires team entry"}
+                {selectedDay === "sat" && "Individual Match Play \u2014 Uses individual scores from Score Entry"}
+              </p>
+            </div>
+
+            {/* Matchups */}
+            {(matchups[selectedDay] || []).length === 0 ? (
+              <div className="bg-white rounded-xl border border-cream-dark p-12 text-center">
+                <p className="text-charcoal/40 text-sm font-serif italic m-0">
+                  No matchups set for this day.
+                </p>
+                <p className="text-charcoal/30 text-xs mt-2 m-0">
+                  Admin can set matchups in Tournament &rarr; Teams & Matchups.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {(matchups[selectedDay] || []).map((matchup, idx) => {
+                  const matchupWithIdx = { ...matchup, _idx: idx };
+                  const matchData = computeMatchData(matchupWithIdx, selectedDay);
+                  if (!matchData) return null;
+
+                  // Player names for display
+                  const aNames = selectedDay === "sat"
+                    ? [matchup.teamAPlayer]
+                    : matchup.teamAPair || [];
+                  const bNames = selectedDay === "sat"
+                    ? [matchup.teamBPlayer]
+                    : matchup.teamBPair || [];
+
+                  // Designated scorer check (first player in team A pair, or individual player on Sat)
+                  const designatedScorerName = selectedDay === "sat" ? null : aNames[0];
+                  const isDesignatedScorer = designatedScorerName
+                    ? profile?.displayName === designatedScorerName
+                    : false;
+                  const canEditMatch = isScoreAdmin || isDesignatedScorer;
+
+                  // Needs team score entry for scramble or alt shot back 9
+                  const needsTeamEntry = selectedDay === "thu" || selectedDay === "fri";
+
+                  const status = matchData.status;
+                  const leaderName = status.leader === "A" ? (tournament?.teamAName || "Team A") :
+                                     status.leader === "B" ? (tournament?.teamBName || "Team B") : "Tied";
+
+                  return (
+                    <div key={idx} className="bg-white rounded-2xl border border-cream-dark overflow-hidden">
+                      {/* Matchup Header */}
+                      <div className="grid grid-cols-[1fr_auto_1fr]">
+                        <div className="bg-emerald-50 p-5 text-center">
+                          {aNames.map((n, i) => (
+                            <p key={i} className="text-emerald-800 text-sm font-bold m-0">{n || "TBD"}</p>
+                          ))}
+                        </div>
+                        <div className="bg-pine flex items-center justify-center px-6">
+                          <div className="text-center">
+                            <p className="text-gold/50 text-[9px] tracking-wider uppercase m-0 mb-1">Match</p>
+                            <p className="text-cream text-sm font-serif font-bold m-0">VS</p>
+                          </div>
+                        </div>
+                        <div className="bg-amber-50 p-5 text-center">
+                          {bNames.map((n, i) => (
+                            <p key={i} className="text-amber-800 text-sm font-bold m-0">{n || "TBD"}</p>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Match Status Banner */}
+                      <div className={`px-6 py-4 text-center border-b-2 ${
+                        status.final
+                          ? (status.leader === "A" ? "bg-emerald-100 border-emerald-300" :
+                             status.leader === "B" ? "bg-amber-100 border-amber-300" :
+                             "bg-cream border-cream-dark")
+                          : "bg-cream border-cream-dark"
+                      }`}>
+                        {status.holesPlayed === 0 ? (
+                          <p className="text-charcoal/40 text-sm m-0 font-serif italic">Match not started</p>
+                        ) : status.final ? (
+                          <div>
+                            <p className={`text-2xl font-serif font-bold m-0 ${
+                              status.leader === "A" ? "text-emerald-800" :
+                              status.leader === "B" ? "text-amber-800" :
+                              "text-charcoal"
+                            }`}>
+                              {status.status === "HALVED" ? "HALVED" : `${leaderName} wins ${status.status}`}
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className={`text-2xl font-serif font-bold m-0 ${
+                              status.leader === "A" ? "text-emerald-800" :
+                              status.leader === "B" ? "text-amber-800" :
+                              "text-charcoal"
+                            }`}>
+                              {status.status === "AS" ? "ALL SQUARE" : `${leaderName} ${status.status}`}
+                            </p>
+                            <p className="text-charcoal/50 text-xs mt-1 m-0">thru {status.holesPlayed}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Hole-by-hole grid */}
+                      <div className="p-4 overflow-x-auto">
+                        <table className="w-full" style={{ minWidth: 700 }}>
+                          <thead>
+                            <tr className="text-[10px] text-charcoal/40 font-bold uppercase">
+                              <td className="w-24 py-1"></td>
+                              {Array.from({ length: 18 }, (_, i) => (
+                                <td key={i} className="text-center py-1 w-8">{i + 1}</td>
+                              ))}
+                            </tr>
+                            <tr className="text-[10px] text-charcoal/30 font-bold border-b border-cream-dark">
+                              <td className="w-24 py-1 text-left pl-2">PAR</td>
+                              {course?.pars?.map?.((p, i) => (
+                                <td key={i} className="text-center py-1">{p}</td>
+                              )) || COURSES.find((c) => c.day === selectedDay)?.pars.map((p, i) => (
+                                <td key={i} className="text-center py-1">{p}</td>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* Team A row */}
+                            <tr className="border-b border-cream-dark/50">
+                              <td className="py-2 text-left text-emerald-800 text-[11px] font-bold uppercase tracking-wide">
+                                {aNames.length > 1 ? aNames.map((n) => n?.split(" ")[0]).join(" / ") : aNames[0]?.split(" ")[0]}
+                              </td>
+                              {Array.from({ length: 18 }, (_, i) => {
+                                const netA = matchData.teamANet[i];
+                                const netB = matchData.teamBNet[i];
+                                const won = netA != null && netB != null && netA < netB;
+                                const tied = netA != null && netB != null && netA === netB;
+
+                                // Determine if this hole needs team entry
+                                const isScrambleOrAlt = selectedDay === "thu" ||
+                                  (selectedDay === "fri" && i >= 9);
+                                const matchKey = `${selectedDay}-match${idx}`;
+                                const matchDoc = matchScores[matchKey] || {};
+                                const teamAGross = (matchDoc.teamAHoles && matchDoc.teamAHoles[i + 1]) || "";
+
+                                return (
+                                  <td key={i} className="text-center py-1 px-0.5">
+                                    {isScrambleOrAlt ? (
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        max="15"
+                                        value={teamAGross}
+                                        onChange={(e) => canEditMatch && saveMatchScore(selectedDay, idx, "A", i + 1, e.target.value)}
+                                        disabled={!canEditMatch}
+                                        className={`w-8 h-8 text-center text-[11px] font-bold rounded border font-serif ${
+                                          won ? "bg-emerald-200 border-emerald-400 text-emerald-900" :
+                                          tied ? "bg-cream border-cream-dark text-charcoal" :
+                                          netA != null ? "bg-white border-cream-dark text-charcoal/40" :
+                                          "bg-white border-cream-dark text-charcoal/30"
+                                        } ${!canEditMatch ? "cursor-not-allowed opacity-70" : ""}`}
+                                      />
+                                    ) : (
+                                      <div className={`w-8 h-8 flex items-center justify-center text-[11px] font-bold rounded border font-serif ${
+                                        won ? "bg-emerald-200 border-emerald-400 text-emerald-900" :
+                                        tied ? "bg-cream border-cream-dark text-charcoal" :
+                                        netA != null ? "bg-white border-cream-dark text-charcoal/40" :
+                                        "bg-white border-cream-dark text-charcoal/20"
+                                      }`}>
+                                        {netA != null ? netA : "-"}
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                            {/* Team B row */}
+                            <tr>
+                              <td className="py-2 text-left text-amber-800 text-[11px] font-bold uppercase tracking-wide">
+                                {bNames.length > 1 ? bNames.map((n) => n?.split(" ")[0]).join(" / ") : bNames[0]?.split(" ")[0]}
+                              </td>
+                              {Array.from({ length: 18 }, (_, i) => {
+                                const netA = matchData.teamANet[i];
+                                const netB = matchData.teamBNet[i];
+                                const won = netA != null && netB != null && netB < netA;
+                                const tied = netA != null && netB != null && netA === netB;
+
+                                const isScrambleOrAlt = selectedDay === "thu" ||
+                                  (selectedDay === "fri" && i >= 9);
+                                const matchKey = `${selectedDay}-match${idx}`;
+                                const matchDoc = matchScores[matchKey] || {};
+                                const teamBGross = (matchDoc.teamBHoles && matchDoc.teamBHoles[i + 1]) || "";
+
+                                return (
+                                  <td key={i} className="text-center py-1 px-0.5">
+                                    {isScrambleOrAlt ? (
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        max="15"
+                                        value={teamBGross}
+                                        onChange={(e) => canEditMatch && saveMatchScore(selectedDay, idx, "B", i + 1, e.target.value)}
+                                        disabled={!canEditMatch}
+                                        className={`w-8 h-8 text-center text-[11px] font-bold rounded border font-serif ${
+                                          won ? "bg-amber-200 border-amber-400 text-amber-900" :
+                                          tied ? "bg-cream border-cream-dark text-charcoal" :
+                                          netB != null ? "bg-white border-cream-dark text-charcoal/40" :
+                                          "bg-white border-cream-dark text-charcoal/30"
+                                        } ${!canEditMatch ? "cursor-not-allowed opacity-70" : ""}`}
+                                      />
+                                    ) : (
+                                      <div className={`w-8 h-8 flex items-center justify-center text-[11px] font-bold rounded border font-serif ${
+                                        won ? "bg-amber-200 border-amber-400 text-amber-900" :
+                                        tied ? "bg-cream border-cream-dark text-charcoal" :
+                                        netB != null ? "bg-white border-cream-dark text-charcoal/40" :
+                                        "bg-white border-cream-dark text-charcoal/20"
+                                      }`}>
+                                        {netB != null ? netB : "-"}
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Designated scorer notice */}
+                      {needsTeamEntry && (
+                        <div className="px-6 py-3 border-t border-cream-dark bg-cream/30">
+                          {canEditMatch ? (
+                            <p className="text-pine text-[11px] m-0 text-center font-semibold">
+                              {isScoreAdmin ? "Admin access" : "You are the designated scorer"} &mdash; enter team gross scores per hole
+                              {selectedDay === "fri" && " (Alt Shot holes 10-18 only; F9 uses individual scores)"}
+                            </p>
+                          ) : (
+                            <p className="text-charcoal/40 text-[11px] m-0 text-center">
+                              Designated scorer: <strong>{designatedScorerName || "TBD"}</strong>
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
