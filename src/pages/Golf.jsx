@@ -249,9 +249,9 @@ export default function Golf() {
     if (!leaderboardCourse) return [];
     return players.map((p) => {
       const s = getScoreData(p.id, leaderboardDay);
-      const pStrokes = getStrokesPerHole(p.handicap || 0);
+      const pStrokes = getStrokesPerHole(p.handicap || 0, leaderboardCourse.hdcps);
       let holesPlayed = 0;
-      let totalToPar = 0;
+      let runningToPar = 0;
       const holeScores = [];
 
       for (let h = 0; h < 18; h++) {
@@ -260,8 +260,15 @@ export default function Golf() {
           holesPlayed++;
           const net = gross - pStrokes[h];
           const diff = net - leaderboardCourse.pars[h];
-          totalToPar += diff;
-          holeScores.push({ hole: h + 1, gross, net, par: leaderboardCourse.pars[h], diff });
+          runningToPar += diff;
+          holeScores.push({
+            hole: h + 1,
+            gross,
+            net,
+            par: leaderboardCourse.pars[h],
+            diff,
+            cumulative: runningToPar, // cumulative to-par after this hole
+          });
         } else {
           holeScores.push(null);
         }
@@ -274,7 +281,7 @@ export default function Golf() {
         name: p.displayName,
         handicap: p.handicap || 0,
         holesPlayed,
-        totalToPar,
+        totalToPar: runningToPar,
         grossTotal,
         holeScores,
       };
@@ -355,98 +362,84 @@ export default function Golf() {
                 No scores entered for this day yet.
               </p>
             ) : (
-              <div className="bg-pine rounded-2xl overflow-hidden shadow-xl">
-                {/* Header */}
-                <div className="bg-pine-dark px-3 py-3 text-center border-b border-white/10">
-                  <h3 className="text-gold font-serif font-bold text-lg m-0 tracking-wide">LEADERS</h3>
+              <div className="rounded-t-[40px] rounded-b-xl overflow-hidden shadow-xl border-4 border-pine"
+                   style={{ background: "#f4f1e8" }}>
+                {/* Arched header */}
+                <div className="bg-white py-4 text-center border-b-2 border-black relative"
+                     style={{ borderBottomStyle: "solid" }}>
+                  <h3 className="text-black font-serif font-black text-3xl md:text-4xl m-0 tracking-wider">
+                    LEADERS
+                  </h3>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm" style={{ minWidth: 700 }}>
+                <div className="overflow-x-auto bg-white">
+                  <table className="w-full border-collapse" style={{ minWidth: 900 }}>
                     <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="text-left px-3 py-2 text-gold/60 text-[10px] tracking-wider uppercase font-semibold w-8">
-                          <span className="text-[8px]">TO<br/>PAR</span>
+                      {/* HOLE row */}
+                      <tr>
+                        <th className="text-[9px] font-bold text-black border-2 border-black px-1 py-1 text-center"
+                            style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", minWidth: 24 }}>
+                          PRIOR
                         </th>
-                        <th className="text-left px-2 py-2 text-cream/80 text-[10px] tracking-wider uppercase font-semibold">
-                          PLAYER
+                        <th className="text-left px-3 py-2 text-black text-base md:text-lg font-black tracking-widest border-2 border-black bg-white">
+                          HOLE
                         </th>
-                        <th className="text-center px-1 py-2 text-cream/40 text-[10px] font-semibold">THRU</th>
                         {Array.from({ length: 18 }, (_, i) => (
-                          <th key={i} className="text-center px-0 py-2 text-cream/40 text-[10px] font-semibold w-8">
+                          <th key={i} className="text-center text-black text-sm md:text-base font-black border-2 border-black px-0 py-1 bg-white" style={{ minWidth: 32 }}>
                             {i + 1}
                           </th>
                         ))}
-                        <th className="text-center px-2 py-2 text-cream/60 text-[10px] font-semibold">TOT</th>
                       </tr>
-                      {/* Par row */}
-                      <tr className="border-b border-white/10 bg-white/5">
-                        <td className="px-3 py-1"></td>
-                        <td className="px-2 py-1 text-cream/40 text-[10px] font-bold">PAR</td>
-                        <td className="px-1 py-1"></td>
+                      {/* PAR row */}
+                      <tr>
+                        <td className="border-2 border-black bg-white"></td>
+                        <td className="text-left px-3 py-2 text-black text-base md:text-lg font-black tracking-widest border-2 border-black bg-white">
+                          PAR
+                        </td>
                         {leaderboardCourse?.pars.map((p, i) => (
-                          <td key={i} className="text-center px-0 py-1 text-cream/40 text-[10px] font-bold">{p}</td>
+                          <td key={i} className="text-center text-black text-sm md:text-base font-black border-2 border-black px-0 py-1 bg-white">
+                            {p}
+                          </td>
                         ))}
-                        <td className="text-center px-2 py-1 text-cream/40 text-[10px] font-bold">{leaderboardCourse?.par}</td>
-                      </tr>
-                      {/* Handicap index row */}
-                      <tr className="border-b border-white/10">
-                        <td className="px-3 py-0.5"></td>
-                        <td className="px-2 py-0.5 text-cream/20 text-[8px]">HDCP</td>
-                        <td className="px-1 py-0.5"></td>
-                        {leaderboardCourse?.hdcps.map((h, i) => (
-                          <td key={i} className="text-center px-0 py-0.5 text-cream/20 text-[8px]">{h}</td>
-                        ))}
-                        <td className="px-2 py-0.5"></td>
                       </tr>
                     </thead>
                     <tbody>
-                      {leaderboardData.map((player, idx) => (
-                        <tr key={player.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          {/* To Par */}
-                          <td className="px-3 py-2.5">
-                            <span className={`font-bold font-serif text-base ${
-                              player.totalToPar < 0 ? "text-red-400" :
-                              player.totalToPar === 0 ? "text-green-400" :
-                              "text-cream/60"
+                      {leaderboardData.map((player) => (
+                        <tr key={player.id}>
+                          {/* PRIOR to-par column */}
+                          <td className="text-center border-2 border-black bg-white px-1 py-1.5">
+                            <span className={`font-black text-sm md:text-base ${
+                              player.totalToPar < 0 ? "text-red-600" :
+                              player.totalToPar === 0 ? "text-black" :
+                              "text-green-700"
                             }`}>
                               {player.totalToPar === 0 ? "E" :
                                player.totalToPar > 0 ? `+${player.totalToPar}` :
-                               player.totalToPar}
+                               Math.abs(player.totalToPar)}
                             </span>
                           </td>
-                          {/* Name */}
-                          <td className="px-2 py-2.5">
-                            <span className="text-cream font-bold text-xs uppercase tracking-wide">
-                              {player.name}
-                            </span>
+                          {/* Player name */}
+                          <td className="text-left px-3 py-1.5 text-black text-xs md:text-sm font-black uppercase tracking-wide border-2 border-black bg-white whitespace-nowrap">
+                            {player.name}
                           </td>
-                          {/* Thru */}
-                          <td className="text-center px-1 py-2.5 text-cream/40 text-xs">
-                            {player.holesPlayed === 18 ? "F" : player.holesPlayed}
-                          </td>
-                          {/* Hole scores */}
+                          {/* Hole-by-hole cumulative to-par */}
                           {player.holeScores.map((h, i) => (
-                            <td key={i} className="text-center px-0 py-2.5">
+                            <td key={i} className="text-center border-2 border-black bg-white px-0 py-1.5">
                               {h ? (
-                                <span className={`inline-flex items-center justify-center w-6 h-6 text-[11px] font-bold rounded-full ${
-                                  h.diff <= -2 ? "bg-yellow-400 text-yellow-900" :
-                                  h.diff === -1 ? "bg-red-500 text-white" :
-                                  h.diff === 0 ? "text-green-400" :
-                                  h.diff === 1 ? "text-cream/50" :
-                                  "bg-blue-900/50 text-blue-300"
+                                <span className={`font-black text-sm md:text-base ${
+                                  h.cumulative < 0 ? "text-red-600" :
+                                  h.cumulative === 0 ? "text-black" :
+                                  "text-green-700"
                                 }`}>
-                                  {h.gross}
+                                  {h.cumulative === 0 ? "0" :
+                                   h.cumulative > 0 ? h.cumulative :
+                                   Math.abs(h.cumulative)}
                                 </span>
                               ) : (
-                                <span className="text-cream/10 text-[10px]">–</span>
+                                <span className="text-transparent">-</span>
                               )}
                             </td>
                           ))}
-                          {/* Total */}
-                          <td className="text-center px-2 py-2.5">
-                            <span className="text-cream font-bold font-serif">{player.grossTotal}</span>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -454,26 +447,18 @@ export default function Golf() {
                 </div>
 
                 {/* Legend */}
-                <div className="bg-pine-dark px-4 py-3 flex items-center justify-center gap-4 border-t border-white/10">
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-block w-4 h-4 rounded-full bg-yellow-400"></span>
-                    <span className="text-cream/40 text-[9px]">Eagle</span>
+                <div className="bg-pine px-4 py-3 flex items-center justify-center gap-6 border-t-2 border-black">
+                  <div className="flex items-center gap-2">
+                    <span className="text-red-400 text-sm font-black">2</span>
+                    <span className="text-cream/60 text-[10px] uppercase tracking-wide">Under Par</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-block w-4 h-4 rounded-full bg-red-500"></span>
-                    <span className="text-cream/40 text-[9px]">Birdie</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-cream text-sm font-black">0</span>
+                    <span className="text-cream/60 text-[10px] uppercase tracking-wide">Even</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-green-400 text-[11px] font-bold">4</span>
-                    <span className="text-cream/40 text-[9px]">Par</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-cream/50 text-[11px] font-bold">5</span>
-                    <span className="text-cream/40 text-[9px]">Bogey</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-900/50 text-blue-300 text-[9px] font-bold">6</span>
-                    <span className="text-cream/40 text-[9px]">Double+</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-400 text-sm font-black">2</span>
+                    <span className="text-cream/60 text-[10px] uppercase tracking-wide">Over Par</span>
                   </div>
                 </div>
               </div>
