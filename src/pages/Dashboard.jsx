@@ -13,14 +13,15 @@ function getCountdown() {
 }
 
 const QUICK_LINKS = [
-  { path: "/tournament", label: "Tournament", desc: "The Inaugural JT Memorial Ryder Cup", icon: "\uD83C\uDFC6" },
-  { path: "/courses", label: "The Courses", desc: "Three rounds of mountain golf glory", icon: "\u26F3" },
   { path: "/lodge", label: "The Lodge", desc: "Your temporary palace awaits", icon: "\uD83C\uDFE0" },
   { path: "/travel", label: "Travel", desc: "The Bureau of Transportation & Logistics", icon: "\u2708\uFE0F" },
+  { path: "/courses", label: "Pro Shop", desc: "Three rounds of mountain golf glory", icon: "\u26F3" },
+  { path: "/tournament", label: "Tournament Info", desc: "The Inaugural JT Memorial Ryder Cup", icon: "\uD83C\uDFC6" },
+  { path: "/golf", label: "Scorecard", desc: "Leaderboard, match play, and standings", icon: "\uD83C\uDFCC\uFE0F" },
   { path: "/board", label: "The Board", desc: "Post, claim, and seek reimbursement", icon: "\uD83D\uDCCB" },
   { path: "/photos", label: "Photos", desc: "Document the evidence", icon: "\uD83D\uDCF8" },
-  { path: "/golf", label: "Golf HQ", desc: "Scores, standings, and side action", icon: "\uD83C\uDFCC\uFE0F" },
   { path: "/casino", label: "Casino", desc: "Track your donations to Harrah's Cherokee", icon: "\uD83C\uDFB0" },
+  { path: "/report", label: "Daily Report", desc: "Full summary for the big screen", icon: "\uD83D\uDCC4" },
 ];
 
 const GOLFERS = ["Bret", "Daniel", "Downs", "Ferris", "JT", "Josh", "Phil", "Preston"];
