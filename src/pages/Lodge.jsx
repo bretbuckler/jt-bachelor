@@ -118,6 +118,15 @@ export default function Lodge() {
             Adopted by The Committee, April 2026. Violations subject to penalty strokes and peer ridicule.
           </p>
 
+          {/* Unofficial Lodge Motto */}
+          <div className="bg-pine rounded-2xl p-6 text-center mb-8 border border-gold/20">
+            <p className="text-gold/40 text-[10px] tracking-[0.2em] uppercase m-0 mb-2">The Unofficial Lodge Motto</p>
+            <p className="text-gold font-serif italic text-xl md:text-2xl m-0 leading-relaxed">
+              "I prefer Taint."
+            </p>
+            <p className="text-cream/40 text-xs mt-3 m-0 tracking-wider uppercase">&mdash; Downs</p>
+          </div>
+
           <div className="space-y-3">
             {HOUSE_RULES.map((rule) => (
               <div key={rule.article} className="bg-white rounded-xl border border-cream-dark overflow-hidden">
