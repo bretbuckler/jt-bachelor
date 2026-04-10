@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -8,6 +8,37 @@ export default function Landing() {
   const [shake, setShake] = useState(false);
   const { unlockGate, gateUnlocked, user } = useAuth();
   const navigate = useNavigate();
+  const audioRef = useRef(null);
+
+  // Background music: try to autoplay immediately. Most browsers block
+  // unmuted autoplay on a first visit, so we also kick it off on the first
+  // user interaction (click, tap, keypress) anywhere on the page.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.volume = 0.4;
+
+    let started = false;
+    const start = () => {
+      if (started) return;
+      el.play().then(() => {
+        started = true;
+      }).catch(() => {
+        // Still blocked — leave listeners in place for the next gesture.
+      });
+    };
+
+    start();
+
+    const events = ["pointerdown", "keydown", "touchstart"];
+    const onGesture = () => start();
+    events.forEach((ev) => window.addEventListener(ev, onGesture, { once: false, passive: true }));
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, onGesture));
+      el.pause();
+    };
+  }, []);
 
   if (gateUnlocked && user) return <Navigate to="/dashboard" replace />;
   if (gateUnlocked) return <Navigate to="/auth" replace />;
@@ -28,6 +59,14 @@ export default function Landing() {
          style={{
            background: "linear-gradient(160deg, #0d1f0d 0%, #1a3a1a 40%, #2d5a2d 100%)",
          }}>
+      {/* Background music — hidden, autoplays on first interaction if needed */}
+      <audio
+        ref={audioRef}
+        src="/audio/patrick-ashlyn-tragedy-jt-remix.mp3"
+        preload="auto"
+        loop
+      />
+
       {/* Decorative elements */}
       <div className="absolute inset-0 opacity-5"
            style={{
