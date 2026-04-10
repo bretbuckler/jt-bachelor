@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   collection, addDoc, onSnapshot, query, orderBy, serverTimestamp,
 } from "firebase/firestore";
@@ -31,6 +31,8 @@ export default function Casino() {
   const [isWin, setIsWin] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     const q = query(collection(db, "casino"), orderBy("createdAt", "desc"));
@@ -39,6 +41,49 @@ export default function Casino() {
     });
     return unsub;
   }, []);
+
+  // Attempt to autoplay the Casino Confessional anthem on mount.
+  // Browsers may block this if the user hasn't interacted with the tab yet —
+  // we fall back to a visible play button in that case.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.volume = 0.6;
+
+    const tryPlay = async () => {
+      try {
+        await el.play();
+        setIsPlaying(true);
+      } catch {
+        setIsPlaying(false);
+      }
+    };
+    tryPlay();
+
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onEnded = () => setIsPlaying(false);
+    el.addEventListener("play", onPlay);
+    el.addEventListener("pause", onPause);
+    el.addEventListener("ended", onEnded);
+
+    return () => {
+      el.removeEventListener("play", onPlay);
+      el.removeEventListener("pause", onPause);
+      el.removeEventListener("ended", onEnded);
+      el.pause();
+    };
+  }, []);
+
+  const togglePlayback = async () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.paused) {
+      try { await el.play(); } catch {}
+    } else {
+      el.pause();
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -102,6 +147,54 @@ export default function Casino() {
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-12">
+        {/* Hidden audio element — attempts autoplay on mount */}
+        <audio
+          ref={audioRef}
+          src="/audio/patrick-ashlyn-tragedy-jt-remix.mp3"
+          preload="auto"
+        />
+
+        {/* Now Playing */}
+        <div className="bg-gradient-to-r from-pine to-pine-light rounded-2xl border border-gold/30 p-5 mb-10 flex items-center gap-4">
+          <button
+            type="button"
+            onClick={togglePlayback}
+            aria-label={isPlaying ? "Pause" : "Play"}
+            className="w-12 h-12 rounded-full bg-gold text-pine flex items-center justify-center border-none cursor-pointer hover:brightness-110 transition-all shrink-0"
+          >
+            {isPlaying ? (
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="5" width="4" height="14" rx="1" />
+                <rect x="14" y="5" width="4" height="14" rx="1" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="text-gold/60 text-[10px] tracking-[0.2em] uppercase m-0 mb-1">
+              {isPlaying ? "Now Playing" : "Official Anthem"}
+            </p>
+            <p className="text-cream text-sm md:text-base font-bold m-0 truncate">
+              Tragedy (JT Remix)
+            </p>
+            <p className="text-cream/50 text-[11px] m-0 mt-0.5 font-serif italic truncate">
+              Patrick &amp; Ashlyn
+            </p>
+          </div>
+          {isPlaying && (
+            <div className="hidden sm:flex items-end gap-0.5 h-6">
+              <span className="w-1 bg-gold animate-pulse" style={{ height: "40%", animationDelay: "0ms" }} />
+              <span className="w-1 bg-gold animate-pulse" style={{ height: "75%", animationDelay: "150ms" }} />
+              <span className="w-1 bg-gold animate-pulse" style={{ height: "55%", animationDelay: "300ms" }} />
+              <span className="w-1 bg-gold animate-pulse" style={{ height: "90%", animationDelay: "450ms" }} />
+              <span className="w-1 bg-gold animate-pulse" style={{ height: "45%", animationDelay: "600ms" }} />
+            </div>
+          )}
+        </div>
+
         {/* Phil Quote */}
         <div className="bg-pine rounded-2xl p-8 text-center mb-10 border border-gold/20">
           <p className="text-gold font-serif italic text-lg md:text-xl m-0 leading-relaxed">
